@@ -93,14 +93,15 @@ namespace DesktopICO
 
         #region 公共方法
 
-        /// <summary>
-        /// 保存当前桌面图标布局
-        /// </summary>
-        /// <returns>布局数据的JSON字符串</returns>
         public string SaveLayout()
         {
             var icons = GetDesktopIcons();
-            return JsonSerializer.Serialize(icons);
+            var options = new JsonSerializerOptions
+            {
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                WriteIndented = true
+            };
+            return JsonSerializer.Serialize(icons, options);
         }
 
         /// <summary>
