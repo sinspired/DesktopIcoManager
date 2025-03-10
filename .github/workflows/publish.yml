@@ -18,10 +18,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x"
 
       - name: Build project
-        run: dotnet build DesktopICO.csproj --configuration Release --no-restore
+        run: dotnet build DesktopICO.csproj --configuration Release --no-restore /p:EnableWindowsTargeting=true
 
       - name: Publish project
         run: dotnet publish Properties/PublishProfiles/FolderProfile.pubxml --configuration Release --output ./bin/publish
@@ -41,7 +41,7 @@ jobs:
           TAG_DESCRIPTION=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
           echo "tag_description=${TAG_DESCRIPTION}" >> $GITHUB_OUTPUT
         shell: bash
-      
+
       - name: Get latest commit message
         id: commit_message
         run: |
