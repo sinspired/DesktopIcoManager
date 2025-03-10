@@ -1,0 +1,73 @@
+name: Publish C# Project
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  build_publish:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish project
+        run: dotnet publish DesktopICO.csproj --configuration Release --output ./bin/publish
+
+      - name: Get tag description
+        id: tag_description
+        run: |
+          TAG_DESCRIPTION=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
+          echo "tag_description=${TAG_DESCRIPTION}" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Get latest commit message
+        id: commit_message
+        run: |
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          echo "commit_message=${COMMIT_MESSAGE}" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Check existing release
+        id: check_release
+        run: |
+          try {
+            gh release view ${{ github.ref_name }} || true
+            echo "release_exists=true" >> $env:GITHUB_OUTPUT
+          } catch {
+            echo "release_exists=false" >> $env:GITHUB_OUTPUT
+          }
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete existing release
+        run: |
+          if (${{ steps.check_release.outputs.release_exists }} -eq 'true') {
+            gh release delete ${{ github.ref_name }}
+          }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "${{ github.ref_name }} ${{ steps.tag_description.outputs.tag_description }}" \
+            --notes "Release for ${{ github.ref_name }}
+  
+          Changes in this release:
+          ${{ steps.commit_message.outputs.commit_message }}" \
+            --draft=false \
+            ./bin/publish/*.exe
+        shell: bash
