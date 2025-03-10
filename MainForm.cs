@@ -67,11 +67,18 @@ namespace DesktopICO
                     foreach (var file in files)
                     {
                         string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(file);
+                        // Layout_2560x1600_UserName_2025_0310_200118.json 示例
                         var parts = fileNameWithoutExtension.Split('_');
-                        string displayName = parts.Length >= 3 ? $"{LayoutPrefix}[{parts[1]}]" : fileNameWithoutExtension;
+                        string displayName = $"{parts[0]}[{parts[1]}]";
+                if (parts[0] == "Layout")
+                        {
+                            displayName = parts.Length >= 3 ? $"{LayoutPrefix}[{parts[1]}]" : fileNameWithoutExtension;
+                        }
+                        
                         string userName = parts.Length >= 3 ? parts[2] : "";
-                        DateTime lastWrite = File.GetLastWriteTime(file);
 
+                        string dateString = $"{parts[3]}{parts[4]}{parts[5]}";
+                        DateTime lastWrite = DateTime.ParseExact(dateString, "yyyyMMddHHmmss", null);
                         var item = new ListViewItem(displayName) { Tag = file };
                         item.SubItems.Add(userName);
                         item.SubItems.Add(lastWrite.ToString("yyyy-MM-dd HH:mm"));
@@ -90,6 +97,7 @@ namespace DesktopICO
             }, "加载布局时出错");
         }
 
+        // 保存桌面布局
         private async void SaveButton_Click(object sender, EventArgs e)
         {
             // 禁用保存按钮防止重复点击
@@ -141,7 +149,7 @@ namespace DesktopICO
             }
         }
 
-
+        // 恢复桌面布局
         private async void RestoreButton_Click(object sender, EventArgs e)
         {
             string? filePath = GetSelectedLayoutFilePath();
@@ -157,28 +165,45 @@ namespace DesktopICO
             }, "恢复布局时出错");
         }
 
+        // 重命名布局
         private void RenameButton_Click(object sender, EventArgs e)
         {
             string? oldFilePath = GetSelectedLayoutFilePath();
             if (oldFilePath == null)
                 return;
+            string? directoryName = Path.GetDirectoryName(oldFilePath);
+            if (directoryName == null)
+            {
+                throw new Exception("无法获取文件目录路径");
+            }
+
+            // 获取文件名的其他部分
+            string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(oldFilePath);
+            var parts = fileNameWithoutExtension.Split('_');
+            if (parts.Length < 4)
+            {
+                throw new Exception("文件名格式不正确");
+            }
 
             string oldName = Path.GetFileNameWithoutExtension(oldFilePath);
-            using var renameDialog = new InputDialog(oldName);
+            // 显示在重命名窗口中的旧名称
+            string oldDisplayName = $"{parts[0]}";
+            using var renameDialog = new InputDialog(oldDisplayName);
+
             if (renameDialog.ShowDialog() == DialogResult.OK)
             {
                 string newName = renameDialog.InputTextBox.Text.Trim();
-                string? directoryName = Path.GetDirectoryName(oldFilePath);
-                if (directoryName == null)
-                {
-                    throw new Exception("无法获取文件目录路径");
-                }
-                string newFilePath = Path.Combine(directoryName, newName + ".json");
+
+                // 仅替换前缀
+                string newFileName = $"{newName}_{parts[1]}_{parts[2]}_{parts[3]}_{parts[4]}_{parts[5]}";
+                string newDisplayName = $"{newName}[{parts[1]}]";
+                string newFilePath = Path.Combine(directoryName, newFileName + ".json");
+
                 ExecuteWithErrorHandling(() =>
                 {
                     File.Move(oldFilePath, newFilePath);
                     var selectedItem = LayoutsListView.SelectedItems[0];
-                    selectedItem.Text = newName;
+                    selectedItem.Text = newDisplayName;
                     selectedItem.Tag = newFilePath;
                     UpdateRunningStatus("重命名成功");
                 }, "重命名布局时出错");
