@@ -2,8 +2,6 @@ name: Publish C# Project
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
 
