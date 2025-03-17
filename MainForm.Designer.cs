@@ -32,26 +32,64 @@ namespace DesktopICO
         {
             components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
+            LayoutsListView = new ListView();
+            布局名称 = new ColumnHeader();
+            用户名 = new ColumnHeader();
+            创建时间 = new ColumnHeader();
             DescriptionLabel = new Label();
             SaveButton = new Button();
             RestoreButton = new Button();
             RenameButton = new Button();
             DeleteButton = new Button();
-            LayoutsListView = new ListView();
-            布局名称 = new ColumnHeader();
-            用户名 = new ColumnHeader();
-            创建时间 = new ColumnHeader();
+            contextMenuStripNotify = new ContextMenuStrip(components);
+            toolStripMenuItem_savelayout = new ToolStripMenuItem();
+            toolStripMenuItem_about = new ToolStripMenuItem();
+            toolStripMenuItem_exit = new ToolStripMenuItem();
             AutoStartButton = new Button();
             AboutButton = new Button();
             SavePathLabel = new Label();
             StatusLabel = new Label();
             main_notifyIcon = new NotifyIcon(components);
-            contextMenuStripNotify = new ContextMenuStrip(components);
-            toolStripMenuItem_savelayout = new ToolStripMenuItem();
-            toolStripMenuItem_about = new ToolStripMenuItem();
-            toolStripMenuItem_exit = new ToolStripMenuItem();
             contextMenuStripNotify.SuspendLayout();
             SuspendLayout();
+            // 
+            // LayoutsListView
+            // 
+            LayoutsListView.AccessibleDescription = "布局列表";
+            LayoutsListView.Alignment = ListViewAlignment.Default;
+            LayoutsListView.Columns.AddRange(new ColumnHeader[] { 布局名称, 用户名, 创建时间 });
+            LayoutsListView.ForeColor = SystemColors.GrayText;
+            LayoutsListView.FullRowSelect = true;
+            LayoutsListView.ImeMode = ImeMode.HangulFull;
+            LayoutsListView.LabelWrap = false;
+            LayoutsListView.Location = new Point(29, 142);
+            LayoutsListView.Margin = new Padding(4);
+            LayoutsListView.MultiSelect = false;
+            LayoutsListView.Name = "LayoutsListView";
+            LayoutsListView.ShowGroups = false;
+            LayoutsListView.Size = new Size(720, 398);
+            LayoutsListView.TabIndex = 6;
+            LayoutsListView.UseCompatibleStateImageBehavior = false;
+            LayoutsListView.View = View.Details;
+            LayoutsListView.ColumnClick += LayoutsListView_ColumnClick;
+            LayoutsListView.ItemActivate += RestoreButton_Click;
+            LayoutsListView.ItemSelectionChanged += ShowSavedLayoutDetails;
+            LayoutsListView.SelectedIndexChanged += LayoutsListView_SelectedIndexChanged;
+            // 
+            // 布局名称
+            // 
+            布局名称.Text = "布局名称";
+            布局名称.Width = 275;
+            // 
+            // 用户名
+            // 
+            用户名.Text = "用户名";
+            用户名.Width = 200;
+            // 
+            // 创建时间
+            // 
+            创建时间.Text = "创建时间";
+            创建时间.Width = 240;
             // 
             // DescriptionLabel
             // 
@@ -112,40 +150,41 @@ namespace DesktopICO
             DeleteButton.Text = "删除";
             DeleteButton.Click += DeleteButton_Click;
             // 
-            // LayoutsListView
+            // contextMenuStripNotify
             // 
-            LayoutsListView.AccessibleDescription = "布局列表";
-            LayoutsListView.AllowColumnReorder = true;
-            LayoutsListView.Columns.AddRange(new ColumnHeader[] { 布局名称, 用户名, 创建时间 });
-            LayoutsListView.FullRowSelect = true;
-            LayoutsListView.HoverSelection = true;
-            LayoutsListView.Location = new Point(29, 142);
-            LayoutsListView.Margin = new Padding(4);
-            LayoutsListView.MultiSelect = false;
-            LayoutsListView.Name = "LayoutsListView";
-            LayoutsListView.Size = new Size(720, 398);
-            LayoutsListView.Sorting = SortOrder.Descending;
-            LayoutsListView.TabIndex = 6;
-            LayoutsListView.UseCompatibleStateImageBehavior = false;
-            LayoutsListView.View = View.Details;
-            LayoutsListView.ItemActivate += RestoreButton_Click;
-            LayoutsListView.ItemMouseHover += ShowSavedLayoutDetails;
-            LayoutsListView.SelectedIndexChanged += LayoutsListView_SelectedIndexChanged;
+            contextMenuStripNotify.AccessibleDescription = "系统托盘右键菜单";
+            contextMenuStripNotify.AccessibleName = "桌面图标位置管理器右键菜单";
+            contextMenuStripNotify.ImageScalingSize = new Size(28, 28);
+            contextMenuStripNotify.Items.AddRange(new ToolStripItem[] { toolStripMenuItem_savelayout, toolStripMenuItem_about, toolStripMenuItem_exit });
+            contextMenuStripNotify.Name = "contextMenuStrip1";
+            contextMenuStripNotify.Size = new Size(253, 106);
+            contextMenuStripNotify.Text = "桌面图标位置管理器";
             // 
-            // 布局名称
+            // toolStripMenuItem_savelayout
             // 
-            布局名称.Text = "布局名称";
-            布局名称.Width = 275;
+            toolStripMenuItem_savelayout.AccessibleDescription = "保存桌面布局";
+            toolStripMenuItem_savelayout.Name = "toolStripMenuItem_savelayout";
+            toolStripMenuItem_savelayout.Size = new Size(252, 34);
+            toolStripMenuItem_savelayout.Text = "快速保存桌面布局";
+            toolStripMenuItem_savelayout.Click += SaveButton_Click;
             // 
-            // 用户名
+            // toolStripMenuItem_about
             // 
-            用户名.Text = "用户名";
-            用户名.Width = 200;
+            toolStripMenuItem_about.AccessibleDescription = "关于桌面图标位置管理器";
+            toolStripMenuItem_about.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            toolStripMenuItem_about.Name = "toolStripMenuItem_about";
+            toolStripMenuItem_about.Size = new Size(252, 34);
+            toolStripMenuItem_about.Text = "关于";
+            toolStripMenuItem_about.TextImageRelation = TextImageRelation.TextBeforeImage;
+            toolStripMenuItem_about.Click += AboutButton_Click;
             // 
-            // 创建时间
+            // toolStripMenuItem_exit
             // 
-            创建时间.Text = "创建时间";
-            创建时间.Width = 240;
+            toolStripMenuItem_exit.AccessibleDescription = "退出软件";
+            toolStripMenuItem_exit.Name = "toolStripMenuItem_exit";
+            toolStripMenuItem_exit.Size = new Size(252, 34);
+            toolStripMenuItem_exit.Text = "退出";
+            toolStripMenuItem_exit.Click += ExitToolStripMenuItem_Click;
             // 
             // AutoStartButton
             // 
@@ -202,42 +241,6 @@ namespace DesktopICO
             main_notifyIcon.Icon = (Icon)resources.GetObject("main_notifyIcon.Icon");
             main_notifyIcon.Text = "桌面图标位置管理器";
             main_notifyIcon.Visible = true;
-            // 
-            // contextMenuStripNotify
-            // 
-            contextMenuStripNotify.AccessibleDescription = "系统托盘右键菜单";
-            contextMenuStripNotify.AccessibleName = "桌面图标位置管理器右键菜单";
-            contextMenuStripNotify.ImageScalingSize = new Size(28, 28);
-            contextMenuStripNotify.Items.AddRange(new ToolStripItem[] { toolStripMenuItem_savelayout, toolStripMenuItem_about, toolStripMenuItem_exit });
-            contextMenuStripNotify.Name = "contextMenuStrip1";
-            contextMenuStripNotify.Size = new Size(253, 106);
-            contextMenuStripNotify.Text = "桌面图标位置管理器";
-            // 
-            // toolStripMenuItem_savelayout
-            // 
-            toolStripMenuItem_savelayout.AccessibleDescription = "保存桌面布局";
-            toolStripMenuItem_savelayout.Name = "toolStripMenuItem_savelayout";
-            toolStripMenuItem_savelayout.Size = new Size(252, 34);
-            toolStripMenuItem_savelayout.Text = "快速保存桌面布局";
-            toolStripMenuItem_savelayout.Click += SaveButton_Click;
-            // 
-            // toolStripMenuItem_about
-            // 
-            toolStripMenuItem_about.AccessibleDescription = "关于桌面图标位置管理器";
-            toolStripMenuItem_about.DisplayStyle = ToolStripItemDisplayStyle.Text;
-            toolStripMenuItem_about.Name = "toolStripMenuItem_about";
-            toolStripMenuItem_about.Size = new Size(252, 34);
-            toolStripMenuItem_about.Text = "关于";
-            toolStripMenuItem_about.TextImageRelation = TextImageRelation.TextBeforeImage;
-            toolStripMenuItem_about.Click += AboutButton_Click;
-            // 
-            // toolStripMenuItem_exit
-            // 
-            toolStripMenuItem_exit.AccessibleDescription = "退出软件";
-            toolStripMenuItem_exit.Name = "toolStripMenuItem_exit";
-            toolStripMenuItem_exit.Size = new Size(252, 34);
-            toolStripMenuItem_exit.Text = "退出";
-            toolStripMenuItem_exit.Click += ExitToolStripMenuItem_Click;
             // 
             // MainForm
             // 

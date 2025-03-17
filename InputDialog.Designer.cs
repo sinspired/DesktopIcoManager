@@ -25,12 +25,15 @@
             // 
             // InputTextBox
             // 
+            InputTextBox.AcceptsReturn = true;
+            InputTextBox.ImeMode = ImeMode.Alpha;
             InputTextBox.Location = new Point(159, 53);
             InputTextBox.Margin = new Padding(6, 4, 4, 4);
             InputTextBox.Name = "InputTextBox";
             InputTextBox.Size = new Size(303, 34);
             InputTextBox.TabIndex = 0;
-            InputTextBox.KeyDown += new KeyEventHandler(InputTextBox_KeyDown);
+            InputTextBox.WordWrap = false;
+            InputTextBox.KeyDown += InputTextBox_KeyDown;
             // 
             // buttonOK
             // 

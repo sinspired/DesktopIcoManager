@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+  release:
+    types: [created]
 
 jobs:
   build_publish:
@@ -19,7 +21,7 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Publish project
-        run: dotnet publish DesktopICO.csproj --configuration Release --output ./bin/publish
+        run: dotnet publish DesktopICO.csproj -c Release -o ./bin/publish  -p:PublishReadyToRun=true
 
       - name: Get tag description
         id: tag_description

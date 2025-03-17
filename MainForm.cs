@@ -1,5 +1,4 @@
 ﻿using Microsoft.Win32;
-using System.Text;
 using System.Text.Json;
 
 namespace DesktopICO
@@ -60,21 +59,22 @@ namespace DesktopICO
                     SavePathLabel.Text = $"保存目录：{LayoutsPath}";
                 }
 
-                var layoutItems = new List<ListViewItem>();
+                var layoutItems = new List<(ListViewItem Item, DateTime LastWrite)>();
+                ListViewItem? latestItem = null;
+                DateTime latestDate = DateTime.MinValue;
 
                 await Task.Run(() =>
                 {
                     foreach (var file in files)
                     {
                         string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(file);
-                        // Layout_2560x1600_UserName_2025_0310_200118.json 示例
                         var parts = fileNameWithoutExtension.Split('_');
                         string displayName = $"{parts[0]}[{parts[1]}]";
-                if (parts[0] == "Layout")
+                        if (parts[0] == "Layout")
                         {
                             displayName = parts.Length >= 3 ? $"{LayoutPrefix}[{parts[1]}]" : fileNameWithoutExtension;
                         }
-                        
+
                         string userName = parts.Length >= 3 ? parts[2] : "";
 
                         string dateString = $"{parts[3]}{parts[4]}{parts[5]}";
@@ -82,8 +82,18 @@ namespace DesktopICO
                         var item = new ListViewItem(displayName) { Tag = file };
                         item.SubItems.Add(userName);
                         item.SubItems.Add(lastWrite.ToString("yyyy-MM-dd HH:mm"));
+                        layoutItems.Add((item, lastWrite));
+                    }
 
-                        layoutItems.Add(item);
+                    // 按时间倒序排序，最新的在最后面
+                    layoutItems.Sort((x, y) => x.LastWrite.CompareTo(y.LastWrite));
+
+                    // 获取最新项（现在就是最后一项）
+                    var newest = layoutItems.LastOrDefault();
+                    if (newest.Item != null)
+                    {
+                        newest.Item.ForeColor = Color.Green;
+                        latestItem = newest.Item;
                     }
                 });
 
@@ -91,18 +101,21 @@ namespace DesktopICO
                 {
                     LayoutsListView.BeginUpdate();
                     LayoutsListView.Items.Clear();
-                    LayoutsListView.Items.AddRange([.. layoutItems]);
+                    LayoutsListView.Items.AddRange(layoutItems.Select(x => x.Item).ToArray());
                     LayoutsListView.EndUpdate();
+
+                    if (latestItem != null)
+                    {
+                        latestItem.Selected = true;
+                        LayoutsListView.EnsureVisible(latestItem.Index);
+                    }
                 });
             }, "加载布局时出错");
         }
 
-        // 保存桌面布局
-        private async void SaveButton_Click(object sender, EventArgs e)
+        private async Task SaveLayoutToFileAsync(bool autoBackup = false)
         {
-            // 禁用保存按钮防止重复点击
             SaveButton.Enabled = false;
-            UpdateRunningStatus("正在更新布局列表...");
             try
             {
                 await ExecuteWithErrorHandlingAsync(async () =>
@@ -111,42 +124,50 @@ namespace DesktopICO
                     string layoutData = desktopManager.SaveLayout();
 
                     Directory.CreateDirectory(LayoutsPath);
-                    string userName = Environment.UserName;
-                    string timestamp = DateTime.Now.ToString("yyyy_MMdd_HHmmss");
-                    string currentYear = DateTime.Now.ToString("yyyy");
-
-                    // 获取屏幕分辨率
-                    string screenResolution = $"{Screen.PrimaryScreen?.Bounds.Width}x{Screen.PrimaryScreen?.Bounds.Height}";
-
-                    // 以 LayoutPrefix 作为前缀
-                    string fileName = $"Layout_{screenResolution}_{userName}_{timestamp}";
+                    string fileName = LayoutFileHelper.CreateFileName("Layout", autoBackup);
                     string filePath = Path.Combine(LayoutsPath, fileName + ".json");
 
-
-
-                    // 检查是否存在同名文件
                     if (!File.Exists(filePath))
                     {
                         UpdateRunningStatus("正在保存布局...");
-                        // 写入文件，await确保写入完成
                         await File.WriteAllTextAsync(filePath, layoutData);
-                        
-                        // 保存成功后，更新UI：添加布局项目
-                        string displayName = $"{LayoutPrefix}[{screenResolution}]";
-                        var item = new ListViewItem(displayName) { Tag = filePath };
 
-                        item.SubItems.Add(userName);
-                        item.SubItems.Add(DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
-                        LayoutsListView.Items.Add(item);
+                        if (!autoBackup)
+                        {
+                            await LoadSavedLayoutsAsync();
+                        }
+                        else
+                        {
+                            var fileInfo = LayoutFileHelper.ParseFileName(fileName);
+                            var item = new ListViewItem(LayoutFileHelper.CreateDisplayName(fileInfo.Prefix, fileInfo.Resolution))
+                            {
+                                Tag = filePath,
+                                ForeColor = Color.RoyalBlue
+                            };
+                            item.SubItems.Add(fileInfo.UserName);
+                            item.SubItems.Add(fileInfo.Timestamp.ToString("yyyy-MM-dd HH:mm"));
+                            LayoutsListView.Items.Add(item);
+                        }
                     }
-                        UpdateRunningStatus("布局保存成功");
+                    UpdateRunningStatus("布局保存成功");
                 }, "保存布局时出错");
             }
             finally
             {
-                // 操作完成后重新启用按钮
                 SaveButton.Enabled = true;
             }
+        }
+
+        private async void SaveButton_Click(object sender, EventArgs e)
+        {
+            UpdateRunningStatus("正在更新布局列表...");
+            await SaveLayoutToFileAsync();
+        }
+
+        private async Task BackupCurrentLayoutAsync()
+        {
+            UpdateRunningStatus("正在备份布局列表...");
+            await SaveLayoutToFileAsync(true);
         }
 
         // 恢复桌面布局
@@ -156,54 +177,80 @@ namespace DesktopICO
             if (filePath == null)
                 return;
 
+            var fileInfo = LayoutFileHelper.ParseFileName(Path.GetFileName(filePath));
+            var latestTime = GetLatestLayoutTimestamp();
+
+            // 如果当前选择的不是最新的布局，并且距离最新布局超过1小时，则进行备份
+            if (latestTime.HasValue &&
+                fileInfo.Timestamp <= latestTime.Value &&
+                (DateTime.Now - latestTime.Value).TotalHours > 1)
+            {
+                UpdateRunningStatus("将自动进行布局备份");
+                await BackupCurrentLayoutAsync();
+            }
+
             await ExecuteWithErrorHandlingAsync(async () =>
             {
                 string layoutData = await File.ReadAllTextAsync(filePath);
                 var desktopManager = new DesktopIcoManager();
                 desktopManager.RestoreLayout(layoutData);
-                UpdateRunningStatus("布局恢复成功，已应用新布局");
+                UpdateRunningStatus("布局恢复成功！");
             }, "恢复布局时出错");
         }
 
-        // 重命名布局
+        private DateTime? GetLatestLayoutTimestamp()
+        {
+            var files = Directory.GetFiles(LayoutsPath, "*.json");
+            if (files.Length == 1)
+            {
+                
+                var fileInfo = LayoutFileHelper.ParseFileName(Path.GetFileName(files[0]));
+                return fileInfo.Timestamp;
+            }
+
+            DateTime? latestTime = null;
+            foreach (var file in files)
+            {
+                try
+                {
+                    var fileInfo = LayoutFileHelper.ParseFileName(Path.GetFileName(file));
+                    if (!latestTime.HasValue || fileInfo.Timestamp > latestTime)
+                    {
+                        latestTime = fileInfo.Timestamp;
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    // 跳过无效的文件名格式
+                    continue;
+                }
+            }
+            return latestTime;
+        }
+
+        // 重命名布局优化
         private void RenameButton_Click(object sender, EventArgs e)
         {
             string? oldFilePath = GetSelectedLayoutFilePath();
             if (oldFilePath == null)
                 return;
-            string? directoryName = Path.GetDirectoryName(oldFilePath);
-            if (directoryName == null)
-            {
-                throw new Exception("无法获取文件目录路径");
-            }
 
-            // 获取文件名的其他部分
-            string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(oldFilePath);
-            var parts = fileNameWithoutExtension.Split('_');
-            if (parts.Length < 4)
-            {
-                throw new Exception("文件名格式不正确");
-            }
-
-            string oldName = Path.GetFileNameWithoutExtension(oldFilePath);
-            // 显示在重命名窗口中的旧名称
-            string oldDisplayName = $"{parts[0]}";
-            using var renameDialog = new InputDialog(oldDisplayName);
+            var fileInfo = LayoutFileHelper.ParseFileName(Path.GetFileName(oldFilePath));
+            using var renameDialog = new InputDialog(fileInfo.Prefix);
 
             if (renameDialog.ShowDialog() == DialogResult.OK)
             {
                 string newName = renameDialog.InputTextBox.Text.Trim();
+                string directoryName = Path.GetDirectoryName(oldFilePath) ?? throw new Exception("无法获取文件目录路径");
 
-                // 仅替换前缀
-                string newFileName = $"{newName}_{parts[1]}_{parts[2]}_{parts[3]}_{parts[4]}_{parts[5]}";
-                string newDisplayName = $"{newName}[{parts[1]}]";
+                string newFileName = $"{newName}_{fileInfo.Resolution}_{fileInfo.UserName}_{fileInfo.Timestamp:yyyy_MMdd_HHmmss}";
                 string newFilePath = Path.Combine(directoryName, newFileName + ".json");
 
                 ExecuteWithErrorHandling(() =>
                 {
                     File.Move(oldFilePath, newFilePath);
                     var selectedItem = LayoutsListView.SelectedItems[0];
-                    selectedItem.Text = newDisplayName;
+                    selectedItem.Text = LayoutFileHelper.CreateDisplayName(newName, fileInfo.Resolution);
                     selectedItem.Tag = newFilePath;
                     UpdateRunningStatus("重命名成功");
                 }, "重命名布局时出错");
@@ -224,6 +271,50 @@ namespace DesktopICO
                     LayoutsListView.Items.Remove(LayoutsListView.SelectedItems[0]);
                     UpdateRunningStatus("布局删除成功");
                 }, "删除布局时出错");
+            }
+        }
+        private void LayoutsListView_ColumnClick(object sender, ColumnClickEventArgs e)
+        {
+            // 获取当前列的排序顺序
+            SortOrder sortOrder = LayoutsListView.Sorting == SortOrder.Ascending ? SortOrder.Descending : SortOrder.Ascending;
+            LayoutsListView.Sorting = sortOrder;
+
+            // 设置排序器
+            LayoutsListView.ListViewItemSorter = new ListViewItemComparer(e.Column, sortOrder);
+            LayoutsListView.Sort();
+        }
+
+        // 自定义排序器
+        private class ListViewItemComparer : System.Collections.IComparer
+        {
+            private readonly int _column;
+            private readonly SortOrder _order;
+
+            public ListViewItemComparer(int column, SortOrder order)
+            {
+                _column = column;
+                _order = order;
+            }
+
+            public int Compare(object? x, object? y)
+            {
+                if (x is ListViewItem itemX && y is ListViewItem itemY)
+                {
+                    int result;
+                    if (_column == 2) // 创建时间列
+                    {
+                        DateTime dateX = DateTime.ParseExact(itemX.SubItems[_column].Text, "yyyy-MM-dd HH:mm", null);
+                        DateTime dateY = DateTime.ParseExact(itemY.SubItems[_column].Text, "yyyy-MM-dd HH:mm", null);
+                        result = DateTime.Compare(dateX, dateY);
+                    }
+                    else
+                    {
+                        result = string.Compare(itemX.SubItems[_column].Text, itemY.SubItems[_column].Text, StringComparison.Ordinal);
+                    }
+
+                    return _order == SortOrder.Ascending ? result : -result;
+                }
+                return 0;
             }
         }
 
@@ -267,7 +358,43 @@ namespace DesktopICO
         {
             UpdateButtonStates();
         }
+        private async void ShowSavedLayoutDetails(object sender, EventArgs e)
+        {
+            string? filePath = GetSelectedLayoutFilePath();
+            if (filePath == null)
+            {
+                return;
+            }
+            else if (!File.Exists(filePath))
+            {
+                LayoutsListView.Items.Remove(LayoutsListView.SelectedItems[0]);
+                UpdateRunningStatus("布局文件不存在，已删除无效项目");
+                return;
+            }
 
+            await ExecuteWithErrorHandlingAsync(async () =>
+            {
+                try
+                {
+                    string layoutData = await File.ReadAllTextAsync(filePath);
+                    var icons = JsonSerializer.Deserialize<List<IconData>>(layoutData);
+
+                    if (icons != null)
+                    {
+                        int totalIcons = icons.Count;
+                        UpdateRunningStatus($"总图标数量: {totalIcons}");
+                    }
+                    else
+                    {
+                        UpdateRunningStatus("无法解析布局数据");
+                    }
+                }
+                catch (FileNotFoundException)
+                {
+                    UpdateRunningStatus("读取布局图标数量失败");
+                }
+            }, "加载布局详情时出错");
+        }
         #endregion
 
         #region 辅助方法
@@ -322,20 +449,11 @@ namespace DesktopICO
         {
             if (LayoutsListView.SelectedItems.Count == 0)
             {
-                try
-                {
-                    LayoutsListView.Items.Remove(LayoutsListView.SelectedItems[0]);
-                    UpdateRunningStatus("布局文件不存在，已删除无效项目");
-                    return null;
-                }
-                catch (Exception ex)
-                {
-                    UpdateRunningStatus("布局文件不存在，已删除无效项目");
-                    return null;
-                }
+                UpdateRunningStatus("未选择任何布局文件");
+                return null;
             }
-
-            return LayoutsListView.SelectedItems[0].Tag?.ToString();
+            string? filePath = LayoutsListView.SelectedItems[0].Tag?.ToString();
+            return filePath;
         }
 
         private static void ShowError(string message, Exception ex)
@@ -347,53 +465,10 @@ namespace DesktopICO
                 MessageBoxIcon.Error);
         }
 
-        private async void ShowSavedLayoutDetails(object sender, EventArgs e)
-        {
-            string? filePath = GetSelectedLayoutFilePath();
-            if (filePath == null)
-            {
-                try
-                {
-                    LayoutsListView.Items.Remove(LayoutsListView.SelectedItems[0]);
-                    UpdateRunningStatus("布局文件不存在，已删除无效项目");
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    UpdateRunningStatus("布局文件不存在，已删除无效项目");
-                    return;
-                }
-            }
-
-            await ExecuteWithErrorHandlingAsync(async () =>
-            {
-                try
-                {
-                    string layoutData = await File.ReadAllTextAsync(filePath);
-                    var icons = JsonSerializer.Deserialize<List<IconData>>(layoutData);
-
-                    if (icons != null)
-                    {
-                        int totalIcons = icons.Count;
-                        UpdateRunningStatus($"总图标数量: {totalIcons}");
-                    }
-                    else
-                    {
-                        UpdateRunningStatus("无法解析布局数据");
-                    }
-                }
-                catch (FileNotFoundException)
-                {
-                    LayoutsListView.Items.Remove(LayoutsListView.SelectedItems[0]);
-                    UpdateRunningStatus("布局文件不存在，已删除无效项目");
-                }
-            }, "加载布局详情时出错");
-        }
-
         private class IconData
         {
-            public string Name { get; set; }
-            public Position Position { get; set; }
+            public required string Name { get; set; }
+            public required Position Position { get; set; }
         }
 
         private class Position
